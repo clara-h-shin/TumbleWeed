@@ -1,5 +1,5 @@
-## I2Tumbles (SimpleTracking V 2.0)
-I2Tumbles converts bacterial movement images into quantitative tracking data, analyzes bacterial motility, 
+## TumbleWeed
+TumbleWeed converts bacterial movement images into quantitative tracking data, analyzes bacterial motility, 
 and provides metrics such as tumbles per second to help researchers compare experimental outcomes.
 
 This script was initially developed to support research in the Baylink Lab, but it can also be applied to a wide range of chemotaxis studies.
