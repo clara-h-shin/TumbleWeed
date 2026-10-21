@@ -9,17 +9,18 @@
 % based on s per frame is calculated and the number, average velocities and
 % degrees of tumbles and runs.
 
-% < IMPORTANT: Please change the file names after running CellTrackAnalysis.m >
+% < IMPORTANT: Please change the excel output file names after running CellTrackAnalysis.m >
 % ^ If you want to perform statistical testing. 
+% For example: CellTrackAnalysis_results.xlsx -> CellTrackAnalysis_results_CB_100325.xlsx
 
-% Last updated: 7/13/2026
+% Last updated: 10/19/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% MAIN PARAMETERS
+% MAIN PARAMETERS
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -49,7 +50,7 @@ w_confirm_factor  = 0.20;
 min_tumble_speed  = 3.0;                    
 
 % --- Scatter plot: show bacteria IDs next to each dot ---
-show_scatter_labels = false;               % true = annotate each dot with its TrackID
+show_scatter_labels = false;                 % true = annotate each dot with its TrackID
 
 % --- Display toggle: set to false to skip all histograms and scatter plot ---
 show_plots = true;
@@ -76,7 +77,6 @@ if fps_scale_sg_window
     fprintf('FPS=%.1f: sg_window auto-scaled to %d (%.0f ms window)\n', ...
         fps_data, sg_window, sg_window / fps_data * 1000);
 end
-minTrackLength = sg_window + 2;
 
 x_raw     = objs_link(1, :)';
 y_raw     = objs_link(2, :)';
@@ -140,9 +140,6 @@ for b = 1 : Nbacteria
     valid = ~isnan(x_col) & ~isnan(y_col);
 
     % ---- First-second displacement, first-second speed, total migration ----
-    % All computed before any continue so every bacterium gets a value.
-    % Uses NaN-safe moving median (window=3) to smooth centroid jitter,
-    % matching migration_v3.m's x_use/y_use approach.
     nFrames1s_mig   = max(1, round(numFrames / secondVideo));
     nFrames_half_s  = round(0.5 * numFrames / secondVideo);  % frames in 0.5 s
     x_sm = movmedian_nan_col(x_col, 3);
@@ -176,12 +173,12 @@ for b = 1 : Nbacteria
                 first_sec_speed(b) = path_len / elapsed_s;
             end
         end
-        % tracks < 0.5 s: firstsec_disp stays NaN (leave as 0 per spec)
+        % tracks < 0.5 s: firstsec_disp stays NaN
         if isnan(firstsec_disp(b)) && numel(valid_idx_mig) >= 2
             firstsec_disp(b) = 0;
         end
 
-        % Total migration: straight-line displacement across entire track
+        % Total migration
         x_all = x_sm(valid_idx_mig);
         y_all = y_sm(valid_idx_mig);
         if convert_to_um
@@ -200,7 +197,7 @@ for b = 1 : Nbacteria
     x_v = x_col(valid);
     y_v = y_col(valid);
 
-    % ---- Pixel-to-micron conversion (applied before velocity — cascades to all outputs) ----
+    % ---- Pixel-to-micron conversion ----
     if convert_to_um
         x_v = x_v * px_to_um;
         y_v = y_v * px_to_um;
@@ -229,9 +226,7 @@ for b = 1 : Nbacteria
     sg_v = sgolayfilt(v_out, sg_poly, sg_window);
     sg_w = sgolayfilt(w_out, sg_poly, sg_window);
 
-    % Total linear speed: mean of sg_v over ALL frames (run + tumble + no-tumble).
-    % Computed here so it is populated even for bacteria that exit tumble
-    % detection early (0 tumbles, angular confirmation failure, etc.).
+    % Total linear speed: mean of sg_v over ALL frames (run + tumble + no-tumble)
     avg_vel_total(b) = mean(sg_v, 'omitnan');
 
     % ---- Store trajectory arrays ----
@@ -336,11 +331,9 @@ for b = 1 : Nbacteria
     end
 
     % ----------------------------------------------------------------
-    %  ANGULAR SPEED CONFIRMATION  (Paper Appendix B, Criterion 2)
-    %  Requires angular speed at the tumble frame (±1) to exceed the
-    %  track-mean angular speed by w_confirm_factor (paper value: 0.20).
-    %  All four arrays — v_tumble, t_tumble, delta_v, v_min_used — are
-    %  the same length and are trimmed together with the same keep mask.
+    %  ANGULAR SPEED CONFIRMATION
+    %  Requires angular speed at the tumble frame to exceed the
+    %  track-mean angular speed by w_confirm_factor
     % ----------------------------------------------------------------
     if use_angular_confirmation
         w_baseline  = mean(sg_w, 'omitnan');
@@ -367,10 +360,6 @@ for b = 1 : Nbacteria
 
     % ----------------------------------------------------------------
     %  MINIMUM SPEED GATE
-    %  Reject tumble candidates where the speed at the dip is already
-    %  near zero. These arise when the bacterium stops moving (wall,
-    %  focal-plane exit) and only angular noise remains. A real tumble
-    %  must start from an active run, so v_min must exceed the threshold.
     % ----------------------------------------------------------------
     if min_tumble_speed > 0
         speed_keep        = v_min_used > min_tumble_speed;
@@ -529,19 +518,12 @@ for b = 1 : Nbacteria
         run_time(1)   = [];
         run_time(end) = [];
     elseif length(run_time) == 1
-        % Only one tumble: keep the single interior run segment as-is.
-        % (The leading/trailing boundary trimming doesn't apply here.)
+        % Only one tumble: keep the single interior run segment as-is
     else
         run_time = [];
     end
 
     if isempty(run_time)
-        % run_time was stripped because there was only 1 tumble and the
-        % trimming logic removed both the first and last boundary.
-        % We can still compute tumble-level metrics — fall through to the
-        % summary block below rather than skipping with continue.
-        % run_time stays empty; avg_run_t will remain NaN for this track
-        % (the 0-tumble fill in the export section handles it correctly).
     end
 
     % ----------------------------------------------------------------
@@ -660,11 +642,7 @@ if exist(outFile, 'file')
     delete(outFile);
 end
 
-% ---- TrackDuration_s: ensure every bacterium with any valid frames gets a value ----
-% track_duration_s is set inside the bacterium loop only when a track reaches
-% the summary-metrics block.  Bacteria that exit early (short track, no tumbles
-% found after filtering, etc.) are still NaN here.  Fill those gaps now from
-% the raw valid-frame count so every row has a duration.
+% ---- TrackDuration_s
 for b = 1 : Nbacteria
     if isnan(track_duration_s(b))
         valid_b = ~isnan(xmat(:, b)) & ~isnan(ymat(:, b));
@@ -681,8 +659,6 @@ valid_dur   = ~isnan(track_duration_s) & track_duration_s > 0 & ~isnan(num_tumbl
 tumble_freq(valid_dur) = num_tumbles(valid_dur) ./ track_duration_s(valid_dur);
 
 % ---- MeanRunDuration_s: fill NaN cases ----
-% 0 tumbles: whole track is a single run → use TrackDuration_s
-% 1 tumble:  run time can't be measured from boundaries → TrackDuration_s - MeanTumbleDuration_s
 mean_run_dur = avg_run_t(:)';
 zero_tumble  = (~isnan(num_tumbles)) & (num_tumbles == 0);
 one_tumble   = (~isnan(num_tumbles)) & (num_tumbles == 1);
@@ -691,22 +667,13 @@ mean_run_dur(one_tumble & isnan(mean_run_dur)) = ...
     track_duration_s(one_tumble & isnan(mean_run_dur)) - avg_tumble_t(one_tumble & isnan(mean_run_dur));
 
 % ---- MeanRunSpeed_um_per_s: if 0 tumbles use the whole-track average speed ----
-% avg_vel is only computed over labelled run-frames; for 0-tumble bacteria
-% every frame is a run frame, but avg_vel may still be NaN if the track
-% exited the summary block early.  Compute a fallback from sg_v directly.
 for b = 1 : Nbacteria
     if zero_tumble(b) && isnan(avg_vel(b)) && ~isempty(v_filt_mat{b})
         avg_vel(b) = mean(v_filt_mat{b}, 'omitnan');
     end
 end
 
-% ---- MeanTumbleDuration_s, MeanTumbleAngle_deg, MeanTumbleSpeed_um_per_s:
-%      NaN when num_tumbles == 0 (already the default — no change needed).
-%      When num_tumbles >= 1, the values were computed in the loop.         ----
-
-% ---- Shared filtered vectors ----
-% Defined once here and reused identically for T_PerTrack, Metadata,
-% printout, and histograms — guaranteeing all outputs are consistent.
+% ---- MeanTumbleDuration_s, MeanTumbleAngle_deg, MeanTumbleSpeed_um_per_s
 nt_plot   = num_tumbles(~isnan(num_tumbles));
 tf_plot   = tumble_freq(~isnan(tumble_freq));
 att_plot  = avg_tumble_t(~isnan(avg_tumble_t));
@@ -754,8 +721,6 @@ T_PerTrack = table( ...
     });
 
 % ---- Build Metadata summary-statistics table ----
-% Uses the same _plot vectors defined above → guaranteed consistent with
-% printout and histograms.
 vecs = {nt_plot, tf_plot, att_plot, art_plot, aa_plot, vt_plot, vr_plot, vall_plot, tmig_plot, dur_plot, fsd_plot, spd_plot};
 
 stat_fns  = {@mean, @median, @std, @var};
@@ -811,8 +776,6 @@ fprintf('Excel saved → %s\n', outFile);
 dodgerblue = [0.118, 0.565, 1.000];
 avgline    = [0.85, 0.10, 0.10];
 
-% (shared _plot vectors already defined above, before Metadata)
-
 % ---- Population-level summary statistics ----
 pop_mean_nt   = mean(nt_plot);    pop_med_nt   = median(nt_plot);
 pop_mean_att  = mean(att_plot);   pop_med_att  = median(att_plot);
@@ -848,7 +811,7 @@ fprintf('=====================================================================\n
 
 if show_plots
 
-% ---- Histogram panels (2 rows × 4 cols = 8 panels) ----
+% ---- Histogram panels ----
 figure('Units','inches', 'Position',[1 1 22 9], 'Color','white');
 
 subplot(2,4,1); smart_histogram(nt_plot,   pop_mean_nt,   'Number of Tumbles',     'Tumble Count',        dodgerblue, avgline, true);

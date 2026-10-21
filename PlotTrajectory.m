@@ -11,14 +11,13 @@
 %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% MAIN PARAMETERS
+% MAIN PARAMETERS
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% d%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 bacteria_idx = 0;           % column index of the bacterium to plot (integer)
 
-                            % bacteria_idx = 0 will display random 20
-                            % bacteria tracks
+                            % bacteria_idx = 0 will display random 20 bacteria tracks
 
 %% =========================================================
 %  Load metadata from the mat file
@@ -57,7 +56,7 @@ if bacteria_idx == 0
     for k = 1 : n_samples
         bi = chosen(k);
 
-        % Get trajectory from stored arrays (already in µm if convert_to_um=true)
+        % Get trajectory from stored arrays
         xi_raw = xmat(:, bi);
         yi_raw = ymat(:, bi);
         vr     = find(~isnan(xi_raw));
@@ -84,7 +83,6 @@ if bacteria_idx == 0
 
         scatter(xi(1), yi(1), 60, 'g', 'o', 'LineWidth', 1.2);
 
-        % Square, padded axes centred on the trajectory
         x_lo = min(xi); x_hi = max(xi);
         y_lo = min(yi); y_hi = max(yi);
         rng_xy   = max(max(x_hi-x_lo, y_hi-y_lo), 1);  % guard zero-range
@@ -130,10 +128,7 @@ frame      = valid_rows;
 x          = x_raw(valid_rows);
 y          = y_raw(valid_rows);
 
-% CellTrackAnalysis.m converts coordinates to µm before storing tumble_x_mat.
-% Apply the same conversion here so the trajectory line and tumble dots
-% are on the same coordinate system. If convert_to_um is false in
-% CellTrackAnalysis.m, set it to false here too.
+
 if exist('convert_to_um','var') && convert_to_um && exist('px_to_um','var')
     x = x * px_to_um;
     y = y * px_to_um;
@@ -157,7 +152,7 @@ bact_avg_run_t    = avg_run_t(bacteria_idx);
 bact_avg_angle    = avg_angle(bacteria_idx);
 
 %% =========================================================
-%  FIGURE 2(a) — Bacterial trajectory
+%  Bacterial trajectory
 %  =========================================================
 
 has_tumbles = ~isempty(t_x_v) && ~isempty(t_y_v);
@@ -194,7 +189,7 @@ axis square;
 hold off;
 
 %% =========================================================
-%  FIGURES 2(b)-(d) — Velocity & angular velocity subplots
+%  Velocity & angular velocity subplots
 %  =========================================================
 
 frames     = (0 : length(v)-1)';   % 0-based frame index for x-axis
@@ -238,7 +233,7 @@ yl2 = ylabel('Angular Velocity (s^{-1})', 'FontSize',lbl_fs);
 set(ax2, 'FontSize',tick_fs);
 hold off;
 
-% ----- Subplot D: overlay — angular velocity on top (red), velocity below (black)
+% ----- Subplot D: overlay
 ax3 = subplot(3,1,3);
 
 v_all = max([v; v_filt], 0);

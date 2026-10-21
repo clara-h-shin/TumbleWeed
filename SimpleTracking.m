@@ -1,4 +1,3 @@
-
 %% SimpleTracking - Version 2.0
 % Reference: Parthasarathy, R. (2012)
 
@@ -14,25 +13,26 @@
 % Version 1.0 Written Fall 2025
 % Version 2.0 Written Spring 2026
 
-% Last updated: 6/2/2026
+% Last updated: 10/19/2026
 % By Clara Shin
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% MAIN PARAMETERS
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-bpfiltsize=         20;                     % bpfiltsize        [A]
-hthreshopt=         2;                      % Threshold Option  [B] 2. Std. Thresh.
-defaultthresh2=     4.0;                    % thr (>1)          [C]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-stdevMinThreshold=  2;                      % Cull: Std. Min. Threshold
-numFrames=          200;                    % Cull: # of Video Image Frames
-secondVideo=        10;                     % Cull: Length of Video (sec)
+bpfiltsize=         20;                     % Upper filter size for spaial bandpass filtering
+hthreshopt=         2;                      % Threshold Option 1)Intensity 2)Stdev 3)Brightness
+defaultthresh2=     4.0;                    % (>= 1) Intensity threshold for particle detection
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+stdevMinThreshold=  2;                      % Stdev Min. Threshold
+numFrames=          200;                    % # of Video Image Frames
+secondVideo=        10;                     % Length of Video (sec)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Neighborhood Parameters
 processopt=         'spatialfilter';        % Process Option
@@ -40,7 +40,7 @@ nsize=              bpfiltsize;             % nsize (Same as bpfiltsize)
 lockobjsize=        true;                   % Lock
 
 grobjsize=          7;                      % grobjsiz
-graddiroptval=      1;         % dir. 1: Both dir, 2. Positive, 3. Negative
+graddiroptval=      1;                      % dir. 1: Both dir, 2. Positive, 3. Negative
 defaultgrthresh=    0.99;                   % grthresh
 
 defaultthresh1=     0.9900;                 % thr (0-1)
@@ -357,14 +357,6 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Perform Culling of either objects or tracks.
-% Options (from Menu, hcullOpt):
-% 3: Cull tracks from objs_link, based on criteria such as standard
-%    deviation, track length, etc. 
-%    Does not change objs, only objs_link
-%    Also saves the dedrifted & culled matrix (objs_dedrift), which
-%    can be output.
-%    Uses cullTracks_function.m, and doesn't use dedrift_rp.m
-%    since we don't need dedrift function.
 
 % Cull Tracks (Option 3 above)
 if islinkdone
