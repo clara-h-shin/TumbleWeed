@@ -16,14 +16,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 bacteria_idx = 0;           % column index of the bacterium to plot (integer)
-
                             % bacteria_idx = 0 will display random 20 bacteria tracks
 
-%% =========================================================
-%  Load metadata from the mat file
-%  =========================================================
+secondVideo=    10;         % video duration in seconds
 
-secondVideo=    10;                                 % video duration in seconds
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 raw_mat=        load('SimpleTrackingoutput.mat', 'Nframes');
 
