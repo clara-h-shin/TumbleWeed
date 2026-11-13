@@ -31,7 +31,7 @@ excel_column_name = 'Tumbles_per_s';
 
 pooled = false;             % true or false
                             % false = one Excel file per group.
-                            % true  = each group can contain multiple Excel files (e.g. several trials). 
+                            % true  = each group can contain multiple Excel files. 
                             % Add files for each group in a window and click Done
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
