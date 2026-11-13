@@ -942,8 +942,8 @@ else
 end
 nTracks_sp = numel(sp_track_cols);
 
-fprintf('Spider plot: %d tracks, %.2f s window (%d frames)\n', ...
-    nTracks_sp, sp_dur_s, nFramesDur);
+% fprintf('Spider plot: %d tracks, %.2f s window (%d frames)\n', ...
+%     nTracks_sp, sp_dur_s, nFramesDur);
 
 % ---- Build coordinate arrays ----
 xcoord = xmat(1:nFramesDur, sp_track_cols);
@@ -997,8 +997,8 @@ else
     xlabel('X (px)', 'FontSize', 14, 'Color', [0.9 0.9 0.9]);
     ylabel('Y (px)', 'FontSize', 14, 'Color', [0.9 0.9 0.9]);
 end
-title(sprintf('Spider Plot  (N=%d tracks, %.1f s window)', nTracks_sp, sp_dur_s), ...
-    'FontSize', 14, 'Color', [0.95 0.95 0.95]);
+% title(sprintf('Spider Plot  (N=%d tracks, %.1f s window)', nTracks_sp, sp_dur_s), ...
+%     'FontSize', 14, 'Color', [0.95 0.95 0.95]);
 
 
 %% =========================================================
