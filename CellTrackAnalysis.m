@@ -13,14 +13,14 @@
 % ^ If you want to perform statistical testing. 
 % For example: CellTrackAnalysis_results.xlsx -> CellTrackAnalysis_results_CB_100325.xlsx
 
-% Last updated: 10/19/2026
+% Last updated: 11/12/2026
 % By Clara Shin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%% % %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% MAIN PARAMETERS
+%% MAIN PARAMETERS
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -55,6 +55,12 @@ show_scatter_labels = false;                 % true = annotate each dot with its
 % --- Display toggle: set to false to skip all histograms and scatter plot ---
 show_plots = true;
 
+% --- Spider plot (rose graph) ---
+spider_n_tracks   = 250;       % default 250; If total tracks < 250, all are shown.
+spider_duration_s = 0;         % 0 = use mean track duration. Set to a positive number to use a fixed window.
+spider_sort       = 'longest'; % 'longest' | 'shortest' | 'all'
+spider_axis_um    = 80;        % half-width of the plot box in µm. Set to 0 to auto-fit to the data.
+
 %% =========================================================
 %  Load simpletracking output data
 %  =========================================================
@@ -67,8 +73,8 @@ numFrames = double(data.Nframes);
 time_int = secondVideo / numFrames;
 
 % --- Scale sg_window to match the paper's ~200 ms smoothing window ---
+fps_data = numFrames / secondVideo;
 if fps_scale_sg_window
-    fps_data    = numFrames / secondVideo;
     fps_paper   = 25;
     paper_window_ms = 5 / fps_paper * 1000;           % = 200 ms
     equiv_frames    = round(paper_window_ms / 1000 * fps_data);
@@ -140,6 +146,9 @@ for b = 1 : Nbacteria
     valid = ~isnan(x_col) & ~isnan(y_col);
 
     % ---- First-second displacement, first-second speed, total migration ----
+    % All computed before any continue so every bacterium gets a value.
+    % Uses NaN-safe moving median (window=3) to smooth centroid jitter,
+    % matching migration_v3.m's x_use/y_use approach.
     nFrames1s_mig   = max(1, round(numFrames / secondVideo));
     nFrames_half_s  = round(0.5 * numFrames / secondVideo);  % frames in 0.5 s
     x_sm = movmedian_nan_col(x_col, 3);
@@ -173,12 +182,12 @@ for b = 1 : Nbacteria
                 first_sec_speed(b) = path_len / elapsed_s;
             end
         end
-        % tracks < 0.5 s: firstsec_disp stays NaN
+        % tracks < 0.5 s: firstsec_disp stays NaN (leave as 0 per spec)
         if isnan(firstsec_disp(b)) && numel(valid_idx_mig) >= 2
             firstsec_disp(b) = 0;
         end
 
-        % Total migration
+        % Total migration: straight-line displacement across entire track
         x_all = x_sm(valid_idx_mig);
         y_all = y_sm(valid_idx_mig);
         if convert_to_um
@@ -197,7 +206,7 @@ for b = 1 : Nbacteria
     x_v = x_col(valid);
     y_v = y_col(valid);
 
-    % ---- Pixel-to-micron conversion ----
+    % ---- Pixel-to-micron conversion (applied before velocity — cascades to all outputs) ----
     if convert_to_um
         x_v = x_v * px_to_um;
         y_v = y_v * px_to_um;
@@ -226,7 +235,9 @@ for b = 1 : Nbacteria
     sg_v = sgolayfilt(v_out, sg_poly, sg_window);
     sg_w = sgolayfilt(w_out, sg_poly, sg_window);
 
-    % Total linear speed: mean of sg_v over ALL frames (run + tumble + no-tumble)
+    % Total linear speed: mean of sg_v over ALL frames (run + tumble + no-tumble).
+    % Computed here so it is populated even for bacteria that exit tumble
+    % detection early (0 tumbles, angular confirmation failure, etc.).
     avg_vel_total(b) = mean(sg_v, 'omitnan');
 
     % ---- Store trajectory arrays ----
@@ -331,9 +342,11 @@ for b = 1 : Nbacteria
     end
 
     % ----------------------------------------------------------------
-    %  ANGULAR SPEED CONFIRMATION
-    %  Requires angular speed at the tumble frame to exceed the
-    %  track-mean angular speed by w_confirm_factor
+    %  ANGULAR SPEED CONFIRMATION  (Paper Appendix B, Criterion 2)
+    %  Requires angular speed at the tumble frame (±1) to exceed the
+    %  track-mean angular speed by w_confirm_factor (paper value: 0.20).
+    %  All four arrays — v_tumble, t_tumble, delta_v, v_min_used — are
+    %  the same length and are trimmed together with the same keep mask.
     % ----------------------------------------------------------------
     if use_angular_confirmation
         w_baseline  = mean(sg_w, 'omitnan');
@@ -360,6 +373,10 @@ for b = 1 : Nbacteria
 
     % ----------------------------------------------------------------
     %  MINIMUM SPEED GATE
+    %  Reject tumble candidates where the speed at the dip is already
+    %  near zero. These arise when the bacterium stops moving (wall,
+    %  focal-plane exit) and only angular noise remains. A real tumble
+    %  must start from an active run, so v_min must exceed the threshold.
     % ----------------------------------------------------------------
     if min_tumble_speed > 0
         speed_keep        = v_min_used > min_tumble_speed;
@@ -518,12 +535,19 @@ for b = 1 : Nbacteria
         run_time(1)   = [];
         run_time(end) = [];
     elseif length(run_time) == 1
-        % Only one tumble: keep the single interior run segment as-is
+        % Only one tumble: keep the single interior run segment as-is.
+        % (The leading/trailing boundary trimming doesn't apply here.)
     else
         run_time = [];
     end
 
     if isempty(run_time)
+        % run_time was stripped because there was only 1 tumble and the
+        % trimming logic removed both the first and last boundary.
+        % We can still compute tumble-level metrics — fall through to the
+        % summary block below rather than skipping with continue.
+        % run_time stays empty; avg_run_t will remain NaN for this track
+        % (the 0-tumble fill in the export section handles it correctly).
     end
 
     % ----------------------------------------------------------------
@@ -642,7 +666,11 @@ if exist(outFile, 'file')
     delete(outFile);
 end
 
-% ---- TrackDuration_s
+% ---- TrackDuration_s: ensure every bacterium with any valid frames gets a value ----
+% track_duration_s is set inside the bacterium loop only when a track reaches
+% the summary-metrics block.  Bacteria that exit early (short track, no tumbles
+% found after filtering, etc.) are still NaN here.  Fill those gaps now from
+% the raw valid-frame count so every row has a duration.
 for b = 1 : Nbacteria
     if isnan(track_duration_s(b))
         valid_b = ~isnan(xmat(:, b)) & ~isnan(ymat(:, b));
@@ -659,6 +687,8 @@ valid_dur   = ~isnan(track_duration_s) & track_duration_s > 0 & ~isnan(num_tumbl
 tumble_freq(valid_dur) = num_tumbles(valid_dur) ./ track_duration_s(valid_dur);
 
 % ---- MeanRunDuration_s: fill NaN cases ----
+% 0 tumbles: whole track is a single run → use TrackDuration_s
+% 1 tumble:  run time can't be measured from boundaries → TrackDuration_s - MeanTumbleDuration_s
 mean_run_dur = avg_run_t(:)';
 zero_tumble  = (~isnan(num_tumbles)) & (num_tumbles == 0);
 one_tumble   = (~isnan(num_tumbles)) & (num_tumbles == 1);
@@ -667,13 +697,22 @@ mean_run_dur(one_tumble & isnan(mean_run_dur)) = ...
     track_duration_s(one_tumble & isnan(mean_run_dur)) - avg_tumble_t(one_tumble & isnan(mean_run_dur));
 
 % ---- MeanRunSpeed_um_per_s: if 0 tumbles use the whole-track average speed ----
+% avg_vel is only computed over labelled run-frames; for 0-tumble bacteria
+% every frame is a run frame, but avg_vel may still be NaN if the track
+% exited the summary block early.  Compute a fallback from sg_v directly.
 for b = 1 : Nbacteria
     if zero_tumble(b) && isnan(avg_vel(b)) && ~isempty(v_filt_mat{b})
         avg_vel(b) = mean(v_filt_mat{b}, 'omitnan');
     end
 end
 
-% ---- MeanTumbleDuration_s, MeanTumbleAngle_deg, MeanTumbleSpeed_um_per_s
+% ---- MeanTumbleDuration_s, MeanTumbleAngle_deg, MeanTumbleSpeed_um_per_s:
+%      NaN when num_tumbles == 0 (already the default — no change needed).
+%      When num_tumbles >= 1, the values were computed in the loop.         ----
+
+% ---- Shared filtered vectors ----
+% Defined once here and reused identically for T_PerTrack, Metadata,
+% printout, and histograms — guaranteeing all outputs are consistent.
 nt_plot   = num_tumbles(~isnan(num_tumbles));
 tf_plot   = tumble_freq(~isnan(tumble_freq));
 att_plot  = avg_tumble_t(~isnan(avg_tumble_t));
@@ -721,6 +760,8 @@ T_PerTrack = table( ...
     });
 
 % ---- Build Metadata summary-statistics table ----
+% Uses the same _plot vectors defined above → guaranteed consistent with
+% printout and histograms.
 vecs = {nt_plot, tf_plot, att_plot, art_plot, aa_plot, vt_plot, vr_plot, vall_plot, tmig_plot, dur_plot, fsd_plot, spd_plot};
 
 stat_fns  = {@mean, @median, @std, @var};
@@ -776,6 +817,8 @@ fprintf('Excel saved → %s\n', outFile);
 dodgerblue = [0.118, 0.565, 1.000];
 avgline    = [0.85, 0.10, 0.10];
 
+% (shared _plot vectors already defined above, before Metadata)
+
 % ---- Population-level summary statistics ----
 pop_mean_nt   = mean(nt_plot);    pop_med_nt   = median(nt_plot);
 pop_mean_att  = mean(att_plot);   pop_med_att  = median(att_plot);
@@ -811,7 +854,7 @@ fprintf('=====================================================================\n
 
 if show_plots
 
-% ---- Histogram panels ----
+% ---- Histogram panels (2 rows × 4 cols = 8 panels) ----
 figure('Units','inches', 'Position',[1 1 22 9], 'Color','white');
 
 subplot(2,4,1); smart_histogram(nt_plot,   pop_mean_nt,   'Number of Tumbles',     'Tumble Count',        dodgerblue, avgline, true);
@@ -858,6 +901,104 @@ xlim([min(x_sc) - x_left_pad,  max(x_sc) + x_pad]);
 ylim([max(0, min(y_sc) - y_pad),  max(y_sc) + y_pad]);
 
 end   % end show_plots
+
+%% =========================================================
+%  Spider plot (rose graph) — separate figure window
+%  =========================================================
+
+% 0 = use mean track duration of the dataset
+if spider_duration_s == 0
+    valid_dur = track_duration_s(~isnan(track_duration_s) & track_duration_s > 0);
+    if isempty(valid_dur)
+        sp_dur_s = secondVideo;          % fallback: full video length
+    else
+        sp_dur_s = mean(valid_dur);
+    end
+else
+    sp_dur_s = spider_duration_s;
+end
+nFramesDur = min(numFrames, max(1, round(sp_dur_s * fps_data)));
+
+% Build a list of valid track column indices (have at least some data)
+valid_cols = find(~all(isnan(xmat), 1));   % columns with at least one valid frame
+
+if spider_n_tracks == 0
+    long_mask     = track_duration_s > 1.0 & ~isnan(track_duration_s);
+    sp_track_cols = find(long_mask);
+else
+    % Sort valid tracks by duration then pick top/bottom/first N
+    dur_valid = track_duration_s(valid_cols);   % durations for valid cols
+    switch lower(spider_sort)
+        case 'longest'
+            [~, sort_idx] = sort(dur_valid, 'descend');
+        case 'shortest'
+            [~, sort_idx] = sort(dur_valid, 'ascend');
+        otherwise   % 'all' or unrecognised — keep dataset order
+            sort_idx = 1 : numel(valid_cols);
+    end
+    sorted_cols   = valid_cols(sort_idx);
+    n_requested   = min(spider_n_tracks, numel(sorted_cols));  % cap to available
+    sp_track_cols = sorted_cols(1:n_requested);
+end
+nTracks_sp = numel(sp_track_cols);
+
+fprintf('Spider plot: %d tracks, %.2f s window (%d frames)\n', ...
+    nTracks_sp, sp_dur_s, nFramesDur);
+
+% ---- Build coordinate arrays ----
+xcoord = xmat(1:nFramesDur, sp_track_cols);
+ycoord = ymat(1:nFramesDur, sp_track_cols);
+
+if convert_to_um
+    xcoord = xcoord * px_to_um;
+    ycoord = ycoord * px_to_um;
+end
+
+% Normalise to origin BEFORE appending NaN row — mirrors reference code:
+%   normalized_x = Xc - Xc(1,:)
+% This pins every track's start to (0,0) so they all radiate from the centre.
+xcoord = xcoord - xcoord(1, :);
+ycoord = ycoord - ycoord(1, :);
+
+% Append NaN row so plot() draws separate lines per track
+Xc = [xcoord; nan(1, nTracks_sp)];
+Yc = [ycoord; nan(1, nTracks_sp)];
+
+% ---- Compute axis limits and clip ----
+% spider_axis_um > 0 : use fixed ± limit; clip lines that exceed it.
+% spider_axis_um = 0 : auto-fit to max reach of the data with 5% pad.
+if spider_axis_um > 0
+    ax_lim = spider_axis_um;
+else
+    all_x = Xc(:); all_y = Yc(:);
+    max_reach = max([abs(all_x(~isnan(all_x))); abs(all_y(~isnan(all_y)))]);
+    if isempty(max_reach) || max_reach == 0, max_reach = 1; end
+    ax_lim = max_reach * 1.05;
+end
+
+% Clip any point outside the box to NaN so lines don't escape
+outside = abs(Xc) > ax_lim | abs(Yc) > ax_lim;
+Xc(outside) = NaN;
+Yc(outside) = NaN;
+
+% ---- Plot ----
+figure('Units','inches', 'Position',[2 2 7 7], 'Color','black');
+plot(Xc, Yc, 'Color', [1 1 1 0.25], 'LineWidth', 1.4);
+set(gca, 'Color', [0 0 0], ...
+         'XColor', [0.7 0.7 0.7], 'YColor', [0.7 0.7 0.7], ...
+         'FontSize', 12, 'Box', 'on');
+axis equal;
+xlim([-ax_lim, ax_lim]);
+ylim([-ax_lim, ax_lim]);
+if convert_to_um
+    xlabel('X (µm)', 'FontSize', 14, 'Color', [0.9 0.9 0.9]);
+    ylabel('Y (µm)', 'FontSize', 14, 'Color', [0.9 0.9 0.9]);
+else
+    xlabel('X (px)', 'FontSize', 14, 'Color', [0.9 0.9 0.9]);
+    ylabel('Y (px)', 'FontSize', 14, 'Color', [0.9 0.9 0.9]);
+end
+title(sprintf('Spider Plot  (N=%d tracks, %.1f s window)', nTracks_sp, sp_dur_s), ...
+    'FontSize', 14, 'Color', [0.95 0.95 0.95]);
 
 
 %% =========================================================
